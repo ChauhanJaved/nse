@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useRef } from "react";
 import { IndexDataResult } from "@/lib/nse";
 import {
   TrendingUp,
@@ -8,14 +8,9 @@ import {
   Activity,
   BarChart3,
   Layers,
-  ArrowUpRight,
-  ArrowDownRight,
-  Info,
-  Calendar,
-  Zap,
-  RefreshCw,
-  Sliders,
-  Sparkles
+  ChevronDown,
+  Sparkles,
+  ArrowDown
 } from "lucide-react";
 
 interface Props {
@@ -26,6 +21,8 @@ interface Props {
 export default function DashboardClient({ data, lastUpdated }: Props) {
   const [selectedIndex, setSelectedIndex] = useState<number>(0);
   const [activeTab, setActiveTab] = useState<"overview" | "breakdown" | "compare">("overview");
+
+  const detailSectionRef = useRef<HTMLDivElement>(null);
 
   const currentData = data[selectedIndex] || data[0];
 
@@ -43,6 +40,16 @@ export default function DashboardClient({ data, lastUpdated }: Props) {
     if (val > 0) return "text-emerald-400";
     if (val < 0) return "text-rose-400";
     return "text-slate-400";
+  };
+
+  const handleCardClick = (index: number) => {
+    setSelectedIndex(index);
+    // On mobile viewports (< 1024px), smoothly scroll down to the detail section so user sees the change immediately
+    if (typeof window !== "undefined" && window.innerWidth < 1024) {
+      setTimeout(() => {
+        detailSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+      }, 60);
+    }
   };
 
   // Helper for generating SVG Area Chart paths for 5Y Historical Data
@@ -123,7 +130,7 @@ export default function DashboardClient({ data, lastUpdated }: Props) {
   };
 
   return (
-    <div className="min-h-screen bg-[#090D16] text-slate-100 font-sans pb-16">
+    <div className="min-h-screen bg-[#090D16] text-slate-100 font-sans pb-24 lg:pb-16">
       {/* Top Glassmorphism Navigation Bar */}
       <header className="border-b border-slate-800/80 bg-[#0B1120]/80 backdrop-blur-md sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
@@ -176,73 +183,91 @@ export default function DashboardClient({ data, lastUpdated }: Props) {
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6 space-y-6">
         {/* Index Selector Cards Grid */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          {data.map((idx, index) => {
-            const isSelected = selectedIndex === index;
-            const isPositive52W = idx.percent52 >= 0;
-            const isPositiveATH = idx.percentAT >= 0;
+        <div>
+          <div className="flex items-center justify-between mb-3 px-1">
+            <h2 className="text-xs font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
+              <Sparkles className="w-3.5 h-3.5 text-blue-400" />
+              <span>Select Index to View Analytics</span>
+            </h2>
+            <span className="text-[11px] text-blue-400 lg:hidden font-medium">
+              Tap card to view charts ↓
+            </span>
+          </div>
 
-            return (
-              <div
-                key={idx.ticker}
-                onClick={() => setSelectedIndex(index)}
-                className={`cursor-pointer group relative rounded-2xl p-4 transition-all duration-200 border ${
-                  isSelected
-                    ? "bg-slate-900/90 border-blue-500/80 shadow-xl shadow-blue-500/10 ring-1 ring-blue-500/50"
-                    : "bg-[#0E1626]/70 border-slate-800/80 hover:border-slate-700 hover:bg-[#121B2E]"
-                }`}
-              >
-                <div className="flex items-start justify-between">
-                  <div>
-                    <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-slate-800 text-slate-300 border border-slate-700">
-                      {idx.shortName}
-                    </span>
-                    <h3 className="text-base font-bold text-white mt-1 group-hover:text-blue-400 transition-colors">
-                      {idx.name}
-                    </h3>
-                  </div>
-                  <div
-                    className={`text-xs px-2 py-1 rounded-md font-semibold border ${getPercentColor(
-                      idx.percent52
-                    )}`}
-                  >
-                    {idx.percent52Str}
-                  </div>
-                </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            {data.map((idx, index) => {
+              const isSelected = selectedIndex === index;
 
-                <div className="mt-3 flex items-baseline justify-between">
-                  <span className="text-xl font-extrabold text-white tracking-tight">
-                    {formatCurrency(idx.current)}
-                  </span>
-                  <span className="text-xs text-slate-400">
-                    ATH: <span className="font-semibold text-slate-300">{formatCurrency(idx.highAllTime)}</span>
-                  </span>
-                </div>
+              return (
+                <div
+                  key={idx.ticker}
+                  onClick={() => handleCardClick(index)}
+                  className={`cursor-pointer group relative rounded-2xl p-4 transition-all duration-200 border active:scale-[0.98] ${
+                    isSelected
+                      ? "bg-slate-900/90 border-blue-500/90 shadow-xl shadow-blue-500/15 ring-2 ring-blue-500/50"
+                      : "bg-[#0E1626]/70 border-slate-800/80 hover:border-slate-700 hover:bg-[#121B2E]"
+                  }`}
+                >
+                  {/* Active Indicator Badge (crucial for mobile visibility) */}
+                  {isSelected && (
+                    <div className="absolute -top-2.5 right-4 bg-gradient-to-r from-blue-600 to-indigo-500 text-white text-[10px] font-black uppercase px-2.5 py-0.5 rounded-full shadow-md flex items-center gap-1">
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+                      <span>ACTIVE</span>
+                    </div>
+                  )}
 
-                {/* Mini 52W Range Bar */}
-                <div className="mt-3">
-                  <div className="flex justify-between text-[10px] text-slate-400 mb-1">
-                    <span>52W L: {formatCurrency(idx.low52)}</span>
-                    <span>52W H: {formatCurrency(idx.high52)}</span>
-                  </div>
-                  <div className="w-full h-1.5 rounded-full bg-slate-800 overflow-hidden relative">
+                  <div className="flex items-start justify-between">
+                    <div>
+                      <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-slate-800 text-slate-300 border border-slate-700">
+                        {idx.shortName}
+                      </span>
+                      <h3 className="text-base font-bold text-white mt-1 group-hover:text-blue-400 transition-colors">
+                        {idx.name}
+                      </h3>
+                    </div>
                     <div
-                      className="h-full rounded-full bg-gradient-to-r from-amber-500 via-blue-500 to-emerald-400"
-                      style={{ width: `${idx.rangePositionPercent}%` }}
-                    />
+                      className={`text-xs px-2 py-1 rounded-md font-semibold border ${getPercentColor(
+                        idx.percent52
+                      )}`}
+                    >
+                      {idx.percent52Str}
+                    </div>
+                  </div>
+
+                  <div className="mt-3 flex items-baseline justify-between">
+                    <span className="text-xl font-extrabold text-white tracking-tight">
+                      {formatCurrency(idx.current)}
+                    </span>
+                    <span className="text-xs text-slate-400">
+                      ATH: <span className="font-semibold text-slate-300">{formatCurrency(idx.highAllTime)}</span>
+                    </span>
+                  </div>
+
+                  {/* Mini 52W Range Bar */}
+                  <div className="mt-3">
+                    <div className="flex justify-between text-[10px] text-slate-400 mb-1">
+                      <span>52W L: {formatCurrency(idx.low52)}</span>
+                      <span>52W H: {formatCurrency(idx.high52)}</span>
+                    </div>
+                    <div className="w-full h-1.5 rounded-full bg-slate-800 overflow-hidden relative">
+                      <div
+                        className="h-full rounded-full bg-gradient-to-r from-amber-500 via-blue-500 to-emerald-400"
+                        style={{ width: `${idx.rangePositionPercent}%` }}
+                      />
+                    </div>
                   </div>
                 </div>
-              </div>
-            );
-          })}
+              );
+            })}
+          </div>
         </div>
 
         {/* Selected Index Detailed Workspace */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div ref={detailSectionRef} className="scroll-mt-20 grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Main Chart & Drawdown Visualizer (2 Columns on Large Screens) */}
           <div className="lg:col-span-2 space-y-6">
             {/* Header Details of Active Index */}
-            <div className="bg-[#0E1626] border border-slate-800 rounded-2xl p-6 relative overflow-hidden">
+            <div className="bg-[#0E1626] border border-slate-800 rounded-2xl p-6 relative overflow-hidden shadow-2xl">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-800/80 pb-4">
                 <div>
                   <div className="flex items-center gap-2">
@@ -255,7 +280,7 @@ export default function DashboardClient({ data, lastUpdated }: Props) {
                 </div>
 
                 <div className="flex items-center gap-3">
-                  <div className="text-right">
+                  <div className="text-left sm:text-right">
                     <div className="text-xs text-slate-400">Current Market Price</div>
                     <div className="text-2xl font-black text-white">{formatCurrency(currentData.current)}</div>
                   </div>
@@ -434,10 +459,15 @@ export default function DashboardClient({ data, lastUpdated }: Props) {
               </div>
 
               <div className="space-y-3">
-                {data.map(idx => (
+                {data.map((idx, i) => (
                   <div
                     key={idx.ticker}
-                    className="flex items-center justify-between p-2.5 rounded-xl bg-slate-900/60 border border-slate-800/80 hover:bg-slate-900 transition-colors"
+                    onClick={() => handleCardClick(i)}
+                    className={`cursor-pointer flex items-center justify-between p-2.5 rounded-xl border transition-all ${
+                      selectedIndex === i
+                        ? "bg-slate-900 border-blue-500/60 ring-1 ring-blue-500/40"
+                        : "bg-slate-900/60 border-slate-800/80 hover:bg-slate-900"
+                    }`}
                   >
                     <div>
                       <div className="text-xs font-bold text-white">{idx.name}</div>
@@ -482,10 +512,13 @@ export default function DashboardClient({ data, lastUpdated }: Props) {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-800/60">
-                {data.map(idx => (
+                {data.map((idx, i) => (
                   <tr
                     key={idx.ticker}
-                    className="hover:bg-slate-900/50 transition-colors"
+                    onClick={() => handleCardClick(i)}
+                    className={`cursor-pointer transition-colors ${
+                      selectedIndex === i ? "bg-slate-800/60" : "hover:bg-slate-900/50"
+                    }`}
                   >
                     <td className="py-3.5 px-4 font-bold text-white">
                       <div>{idx.name}</div>
@@ -519,6 +552,30 @@ export default function DashboardClient({ data, lastUpdated }: Props) {
           </div>
         </div>
       </main>
+
+      {/* Floating Mobile Sticky Footer Bar */}
+      <div className="lg:hidden fixed bottom-3 left-3 right-3 z-40 bg-[#0B1120]/95 backdrop-blur-lg border border-blue-500/40 rounded-2xl p-3 shadow-2xl flex items-center justify-between">
+        <div className="flex items-center gap-2.5">
+          <div className="w-8 h-8 rounded-lg bg-blue-600/20 border border-blue-500/30 text-blue-400 flex items-center justify-center font-bold text-xs">
+            {currentData.shortName}
+          </div>
+          <div>
+            <div className="text-xs font-bold text-white">{currentData.name}</div>
+            <div className="text-[11px] text-slate-400 font-mono">
+              {formatCurrency(currentData.current)} •{" "}
+              <span className={getPercentTextColor(currentData.percent52)}>{currentData.percent52Str}</span>
+            </div>
+          </div>
+        </div>
+
+        <button
+          onClick={() => handleCardClick(selectedIndex)}
+          className="bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold px-3 py-2 rounded-xl flex items-center gap-1.5 shadow-md shadow-blue-600/30 transition-all active:scale-95"
+        >
+          <span>View Charts</span>
+          <ArrowDown className="w-3.5 h-3.5" />
+        </button>
+      </div>
     </div>
   );
 }
