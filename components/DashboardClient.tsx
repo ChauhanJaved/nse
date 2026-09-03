@@ -52,7 +52,7 @@ export default function DashboardClient({ data, lastUpdated }: Props) {
     }
   };
 
-  // Helper for generating SVG Area Chart paths for 5Y Historical Data
+  // Helper for generating SVG Area Chart paths for 5Y Historical Data with Year Markers
   const renderAreaChart = (historical: IndexDataResult["historical5Y"]) => {
     if (!historical || historical.length < 2) {
       return (
@@ -63,12 +63,12 @@ export default function DashboardClient({ data, lastUpdated }: Props) {
     }
 
     const width = 800;
-    const height = 260;
-    const padding = 20;
+    const height = 280;
+    const padding = 30;
 
     const prices = historical.map(h => h.close);
-    const minPrice = Math.min(...prices) * 0.98;
-    const maxPrice = Math.max(...prices) * 1.02;
+    const minPrice = Math.min(...prices) * 0.97;
+    const maxPrice = Math.max(...prices) * 1.03;
 
     const points = historical.map((h, i) => {
       const x = padding + (i / (historical.length - 1)) * (width - 2 * padding);
@@ -86,20 +86,89 @@ export default function DashboardClient({ data, lastUpdated }: Props) {
     const strokeColor = isPositiveOverall ? "#10B981" : "#F43F5E";
     const gradientId = `chartGradient-${currentData.ticker.replace(/[^a-zA-Z0-9]/g, "")}`;
 
+    // Compute exact 6 year marker nodes (5Y Ago -> Current)
+    const lastDate = new Date(historical[historical.length - 1].date);
+    const yearMarkers: Array<{
+      x: number;
+      y: number;
+      yearsAgo: number;
+      label: string;
+      calendarYear: number;
+      dateStr: string;
+      price: number;
+    }> = [];
+
+    for (let y = 5; y >= 0; y--) {
+      const targetDate = new Date(lastDate);
+      targetDate.setFullYear(targetDate.getFullYear() - y);
+
+      let minDiff = Infinity;
+      let closestIdx = 0;
+
+      historical.forEach((h, idx) => {
+        const diff = Math.abs(new Date(h.date).getTime() - targetDate.getTime());
+        if (diff < minDiff) {
+          minDiff = diff;
+          closestIdx = idx;
+        }
+      });
+
+      const pt = points[closestIdx];
+      if (pt) {
+        const label = y === 0 ? "Current" : `${y}Y Ago`;
+        const calYear = new Date(historical[closestIdx].date).getFullYear();
+        yearMarkers.push({
+          x: pt.x,
+          y: pt.y,
+          yearsAgo: y,
+          label,
+          calendarYear: calYear,
+          dateStr: historical[closestIdx].date,
+          price: historical[closestIdx].close
+        });
+      }
+    }
+
     return (
       <div className="relative w-full overflow-hidden">
         <svg viewBox={`0 0 ${width} ${height}`} className="w-full h-auto overflow-visible">
           <defs>
             <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor={strokeColor} stopOpacity="0.35" />
+              <stop offset="0%" stopColor={strokeColor} stopOpacity="0.3" />
               <stop offset="100%" stopColor={strokeColor} stopOpacity="0.0" />
             </linearGradient>
           </defs>
 
-          {/* Background grid lines */}
-          <line x1={padding} y1={padding} x2={width - padding} y2={padding} stroke="#334155" strokeDasharray="3 3" opacity="0.4" />
-          <line x1={padding} y1={height / 2} x2={width - padding} y2={height / 2} stroke="#334155" strokeDasharray="3 3" opacity="0.4" />
-          <line x1={padding} y1={height - padding} x2={width - padding} y2={height - padding} stroke="#334155" strokeDasharray="3 3" opacity="0.4" />
+          {/* Horizontal Background grid lines */}
+          <line x1={padding} y1={padding} x2={width - padding} y2={padding} stroke="#334155" strokeDasharray="3 3" opacity="0.3" />
+          <line x1={padding} y1={height / 2} x2={width - padding} y2={height / 2} stroke="#334155" strokeDasharray="3 3" opacity="0.3" />
+          <line x1={padding} y1={height - padding} x2={width - padding} y2={height - padding} stroke="#334155" strokeDasharray="3 3" opacity="0.3" />
+
+          {/* Vertical Year Grid Lines & Top Labels */}
+          {yearMarkers.map((m, idx) => (
+            <g key={`year-grid-${idx}`}>
+              <line
+                x1={m.x}
+                y1={padding - 5}
+                x2={m.x}
+                y2={height - padding}
+                stroke="#475569"
+                strokeDasharray="4 4"
+                strokeWidth="1.2"
+                opacity="0.5"
+              />
+              <text
+                x={m.x}
+                y={padding - 12}
+                textAnchor="middle"
+                fill="#94A3B8"
+                fontSize="10"
+                fontWeight="600"
+              >
+                {m.label}
+              </text>
+            </g>
+          ))}
 
           {/* Area fill */}
           <path d={areaD} fill={`url(#${gradientId})`} />
@@ -107,23 +176,52 @@ export default function DashboardClient({ data, lastUpdated }: Props) {
           {/* Main Trend Line */}
           <path d={pathD} fill="none" stroke={strokeColor} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
 
-          {/* High / Low Points */}
-          {points.length > 0 && (
-            <circle
-              cx={points[points.length - 1].x}
-              cy={points[points.length - 1].y}
-              r="5"
-              fill={strokeColor}
-              className="animate-pulse"
-            />
-          )}
+          {/* Year Marker Dots & Price Badges on the Curve Line */}
+          {yearMarkers.map((m, idx) => {
+            const isLast = idx === yearMarkers.length - 1;
+            const textYOffset = m.y < padding + 40 ? 18 : -10;
+
+            return (
+              <g key={`year-marker-${idx}`} className="group">
+                {/* Year Circle Node */}
+                <circle
+                  cx={m.x}
+                  cy={m.y}
+                  r={isLast ? "6" : "4.5"}
+                  fill="#0F172A"
+                  stroke={isLast ? strokeColor : "#38BDF8"}
+                  strokeWidth={isLast ? "3" : "2"}
+                  className={isLast ? "animate-pulse" : ""}
+                />
+
+                {/* Price text label above/below node */}
+                <text
+                  x={m.x}
+                  y={m.y + textYOffset}
+                  textAnchor="middle"
+                  fill="#F1F5F9"
+                  fontSize="10"
+                  fontWeight="700"
+                  className="pointer-events-none drop-shadow-md"
+                >
+                  ₹{Math.round(m.price).toLocaleString("en-IN")}
+                </text>
+              </g>
+            );
+          })}
         </svg>
 
-        {/* Dynamic Legend */}
-        <div className="flex items-center justify-between text-xs text-slate-400 mt-2 px-1">
-          <span>{historical[0]?.date}</span>
-          <span className="font-semibold text-slate-300">5-Year Historical Performance Trend</span>
-          <span>{historical[historical.length - 1]?.date}</span>
+        {/* Dynamic Year Timeline X-Axis Footer Bar */}
+        <div className="grid grid-cols-6 text-center text-xs text-slate-400 mt-4 border-t border-slate-800/80 pt-3">
+          {yearMarkers.map((m, idx) => (
+            <div key={`year-footer-${idx}`} className="space-y-0.5">
+              <div className="font-bold text-white text-xs sm:text-sm">{m.label}</div>
+              <div className="text-[11px] text-blue-400 font-semibold">{m.calendarYear}</div>
+              <div className="text-[10px] text-slate-400 font-mono">
+                ₹{Math.round(m.price).toLocaleString("en-IN")}
+              </div>
+            </div>
+          ))}
         </div>
       </div>
     );
